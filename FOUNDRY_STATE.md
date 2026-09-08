@@ -16,17 +16,18 @@ Keep this educational and generic. Do not encode private organizational metrics,
 ## Acceptance
 A user can change one config value for optimization pressure and reproduce a clear case where the measured KPI improves while the real objective worsens.
 
-## Current challenger
+## Frozen scalar champion
 - Branch: `foundry/v0-scalar-sim`; do not merge without explicit approval.
+- Champion commit: `799a4f4b73397479dfb5c12cb6f08864f4ab6049`.
+- Evidence: GitHub Actions workflow run `34190851578`, job `core-contracts` (`101948435135`), completed successfully on Python 3.12.
 - `goodhart_sim.py`: deterministic scalar environment separating productive effort, gaming, observable proxy, and latent true objective.
-- `test_goodhart_sim.py`: contracts for zero-pressure behavior, proxy/goal divergence, determinism, ordered sweeps, invalid pressure, and explicit rejection of unmodelled noise.
-- Architecture/committed contracts: SUPPORTED as inspectable code.
-- Runtime evidence: NOT YET PROVEN until the exact branch head executes the contracts in a reproducible environment.
+- `test_goodhart_sim.py`: six contracts covering zero-pressure behavior, proxy/goal divergence, determinism, ordered sweeps, invalid pressure, and rejection of unmodelled noise.
+- Runtime evidence: SUPPORTED for the committed deterministic synthetic contracts.
 
 ## Claim boundary
-This is a synthetic educational model, not evidence that any real organization or KPI follows these equations. Measurement noise, selection effects, and distribution shift are not yet implemented.
+This is a synthetic educational model, not evidence that any real organization or KPI follows these equations. Measurement noise, selection effects, and distribution shift are NOT YET PROVEN / unimplemented. A green deterministic scalar gate does not establish those extensions or external validity.
 
 ## Highest-EV next move
-Execute `python -m unittest -v` on the exact branch head. If green, freeze the scalar gaming case as the first champion and add deterministic measurement noise with fixed seeds; if red, preserve the counterexample and repair semantics before expansion.
+Keep `799a4f4b...` frozen as champion. Add a challenger with deterministic seeded measurement noise and matched-seed pressure comparisons. Require exact repeatability for identical seeds, divergence across at least two declared seeds, and preservation/detection of the Goodhart failure under a fixed sealed seed set before promotion. Do not use unseeded randomness.
 
-Status: ACTIVE / SCALAR CHALLENGER NOT YET PROVEN
+Status: ACTIVE / SCALAR CHAMPION SUPPORTED / SEEDED-NOISE CHALLENGER NEXT
