@@ -26,19 +26,25 @@ A user can change one config value for optimization pressure and reproduce a cle
 - Challenger commit: `47c087899d979fa6b8b30cdf94544b6adf13882a`.
 - Evidence: GitHub Actions workflow run `34199582629` completed successfully.
 - Capability: deterministic seeded measurement noise, matched-seed pressure comparisons, and a fixed sealed seed failure-rate gate.
-- Promotion status: SUPPORTED on the committed synthetic contracts. Matching a seed preserves the same observation error across pressure conditions; distinct declared seeds produce distinct errors; the fixed sealed seed set preserves the proxy-up / true-objective-down failure.
+- Promotion status: SUPPORTED on the committed synthetic contracts.
 
 ## Selection-effect challenger
 - Exact challenger commit: `791bf57d7367786f42d66a261a473baac0ff407a`.
 - Evidence: GitHub Actions workflow run `34205329030` completed successfully on the exact challenger head.
 - Capability: same declared synthetic population at low and high optimization pressure; proxy ranking with latent outcomes preserved separately; deterministic index tie-breaking.
-- Executed contracts require pressure to change the selected candidate in the declared fixture while increasing selected mean proxy and decreasing selected mean latent objective; deterministic repetition, tie handling, empty-population rejection, and invalid selection-size rejection also pass.
+- Promotion status: SUPPORTED on the committed synthetic contracts.
+
+## Distribution-shift challenger
+- Exact challenger commit: `595027393f3d22d47aded8c2798e65042b62c04d`.
+- Evidence: GitHub Actions workflow run `34210259797` (`Foundry core contracts`) completed successfully on the exact challenger head.
+- Capability: same proxy-selection rule, optimization pressure, and selection budget evaluated against explicit train/evaluation populations.
+- Executed contracts include an exact-zero no-shift control, a declared shifted population where proxy appeal is preserved while the latent objective degrades, exact deterministic repetition, unequal-population rejection, and empty-population rejection.
 - Promotion status: SUPPORTED on the committed synthetic contracts.
 
 ## Claim boundary
-This is a synthetic educational model, not evidence that any real organization or KPI follows these equations. Scalar gaming, seeded measurement noise, and the declared selection-effect fixture are SUPPORTED only on committed synthetic contracts. Distribution shift and real-world external validity remain NOT YET PROVEN.
+This is a synthetic educational model, not evidence that any real organization or KPI follows these equations. Scalar gaming, seeded measurement noise, selection effects, and the declared distribution-shift fixture are SUPPORTED only on committed synthetic contracts. Real-world external validity remains NOT YET PROVEN.
 
 ## Highest-EV next move
-Keep `791bf57d...` frozen as the selection-effect champion. Add a minimal deterministic distribution-shift challenger using matched configuration budgets and explicit train/evaluation populations. Promotion must show whether a proxy policy that looks acceptable on one declared population degrades under a shifted population, include a no-shift control, deterministic repeatability, and fail-closed invalid shift definitions. Do not infer real-world distribution shift from the synthetic result.
+Freeze `595027393...` as the V0 synthetic failure-mode champion. The remaining V0 acceptance gap is a reproducible user-facing report/CLI that exposes proxy improvement versus latent-objective degradation without changing the validated mechanics. Keep reporting deterministic and dependency-light; do not add dashboards or AI wrappers before the minimal report contract is executable. After that gate, shift OSS allocation to `constraint-graph` / `decision-tree-lab` unless adoption evidence changes expected value.
 
-Status: ACTIVE / SCALAR + SEEDED-NOISE + SELECTION EFFECTS SUPPORTED / DISTRIBUTION-SHIFT CHALLENGER NEXT
+Status: ACTIVE / V0 SYNTHETIC FAILURE MODES SUPPORTED / REPORT CONTRACT NEXT
