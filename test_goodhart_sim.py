@@ -1,107 +1,51 @@
 import unittest
-from goodhart_sim import (
-    Candidate,
-    Config,
-    matched_population_selection,
-    matched_seed_comparison,
-    pressure_sweep,
-    sealed_seed_failure_rate,
-    select_by_proxy,
-    simulate,
-)
-
+from goodhart_sim import Candidate, Config, evaluate_distribution_shift, matched_population_selection, matched_seed_comparison, pressure_sweep, sealed_seed_failure_rate, select_by_proxy, simulate
 
 class ScalarGoodhartContracts(unittest.TestCase):
     def test_zero_pressure_has_no_gaming(self):
-        out = simulate(Config(0.0))
-        self.assertEqual(out.gaming, 0.0)
-        self.assertEqual(out.proxy, 1.0)
-        self.assertEqual(out.true_objective, 1.0)
-
+        out=simulate(Config(0.0)); self.assertEqual((out.gaming,out.proxy,out.true_objective),(0.0,1.0,1.0))
     def test_high_pressure_improves_proxy_while_true_goal_worsens(self):
-        low = simulate(Config(0.25))
-        high = simulate(Config(1.0))
-        self.assertGreater(high.proxy, low.proxy)
-        self.assertLess(high.true_objective, low.true_objective)
-
-    def test_same_config_is_byte_for_byte_deterministic(self):
-        self.assertEqual(simulate(Config(0.75)), simulate(Config(0.75)))
-
-    def test_sweep_preserves_declared_order(self):
-        pressures = (0.0, 0.25, 0.5, 0.75, 1.0)
-        outcomes = pressure_sweep(pressures)
-        self.assertEqual(len(outcomes), len(pressures))
-        self.assertEqual(outcomes[-1], simulate(Config(1.0)))
-
+        low,high=simulate(Config(0.25)),simulate(Config(1.0)); self.assertGreater(high.proxy,low.proxy); self.assertLess(high.true_objective,low.true_objective)
+    def test_same_config_is_deterministic(self): self.assertEqual(simulate(Config(0.75)),simulate(Config(0.75)))
+    def test_sweep_preserves_order(self):
+        p=(0.0,0.25,0.5,0.75,1.0); o=pressure_sweep(p); self.assertEqual(o[-1],simulate(Config(1.0)))
     def test_invalid_pressure_fails_closed(self):
-        with self.assertRaises(ValueError):
-            simulate(Config(1.01))
-
-    def test_noise_requires_explicit_seed(self):
-        with self.assertRaises(ValueError):
-            simulate(Config(0.5, measurement_noise=0.1))
-
-    def test_identical_seed_is_exactly_repeatable(self):
-        config = Config(0.75, measurement_noise=0.2, noise_seed=17)
-        self.assertEqual(simulate(config), simulate(config))
-
-    def test_declared_seeds_produce_distinct_measurement_errors(self):
-        a = simulate(Config(0.75, measurement_noise=0.2, noise_seed=17))
-        b = simulate(Config(0.75, measurement_noise=0.2, noise_seed=29))
-        self.assertNotEqual(a.measurement_error, b.measurement_error)
-        self.assertEqual(a.true_objective, b.true_objective)
-
-    def test_matched_seed_cancels_observation_error_between_pressures(self):
-        low, high = matched_seed_comparison(0.25, 1.0, 0.2, 17)
-        self.assertEqual(low.measurement_error, high.measurement_error)
-        self.assertGreater(high.proxy, low.proxy)
-        self.assertLess(high.true_objective, low.true_objective)
-
-    def test_goodhart_failure_survives_fixed_sealed_seed_set(self):
-        sealed = (3, 11, 17, 29, 41, 53, 71, 89)
-        self.assertEqual(sealed_seed_failure_rate(sealed), 1.0)
-
-    def test_empty_sealed_seed_set_fails_closed(self):
-        with self.assertRaises(ValueError):
-            sealed_seed_failure_rate(())
-
+        with self.assertRaises(ValueError): simulate(Config(1.01))
+    def test_noise_requires_seed(self):
+        with self.assertRaises(ValueError): simulate(Config(0.5,measurement_noise=0.1))
+    def test_seed_repeatability(self):
+        c=Config(0.75,0.2,17); self.assertEqual(simulate(c),simulate(c))
+    def test_distinct_seeds(self):
+        a,b=simulate(Config(0.75,0.2,17)),simulate(Config(0.75,0.2,29)); self.assertNotEqual(a.measurement_error,b.measurement_error); self.assertEqual(a.true_objective,b.true_objective)
+    def test_matched_seed(self):
+        low,high=matched_seed_comparison(0.25,1.0,0.2,17); self.assertEqual(low.measurement_error,high.measurement_error); self.assertGreater(high.proxy,low.proxy); self.assertLess(high.true_objective,low.true_objective)
+    def test_sealed_seeds(self): self.assertEqual(sealed_seed_failure_rate((3,11,17,29,41,53,71,89)),1.0)
+    def test_empty_seeds_fail(self):
+        with self.assertRaises(ValueError): sealed_seed_failure_rate(())
 
 class SelectionEffectContracts(unittest.TestCase):
+    def setUp(self): self.population=(Candidate(1.0,0.1),Candidate(0.8,1.0),Candidate(0.9,0.35))
+    def test_pressure_changes_selection(self):
+        low,high=matched_population_selection(self.population,0.25,1.0,1); self.assertEqual(low.selected_indices,(0,)); self.assertEqual(high.selected_indices,(1,)); self.assertGreater(high.mean_proxy,low.mean_proxy); self.assertLess(high.mean_true_objective,low.mean_true_objective)
+    def test_deterministic(self): self.assertEqual(select_by_proxy(self.population,0.75,2),select_by_proxy(self.population,0.75,2))
+    def test_ties(self): self.assertEqual(select_by_proxy((Candidate(1,0),Candidate(1,0)),0.5,1).selected_indices,(0,))
+    def test_invalid_size(self):
+        with self.assertRaises(ValueError): select_by_proxy(self.population,0.5,0)
+    def test_empty(self):
+        with self.assertRaises(ValueError): select_by_proxy((),0.5,1)
+
+class DistributionShiftContracts(unittest.TestCase):
     def setUp(self):
-        self.population = (
-            Candidate(base_productivity=1.0, gaming_affinity=0.1),
-            Candidate(base_productivity=0.8, gaming_affinity=1.0),
-            Candidate(base_productivity=0.9, gaming_affinity=0.35),
-        )
+        self.train=(Candidate(1.0,0.1),Candidate(0.85,0.4),Candidate(0.8,0.8))
+        self.shifted=(Candidate(0.7,0.1),Candidate(0.75,0.4),Candidate(0.72,1.3))
+    def test_no_shift_control_is_exactly_zero(self):
+        r=evaluate_distribution_shift(self.train,self.train,1.0,1); self.assertEqual(r.proxy_delta,0.0); self.assertEqual(r.true_objective_delta,0.0); self.assertEqual(r.train,r.evaluation)
+    def test_shift_can_preserve_proxy_appeal_while_degrading_goal(self):
+        r=evaluate_distribution_shift(self.train,self.shifted,1.0,1); self.assertGreaterEqual(r.evaluation.mean_proxy,r.train.mean_proxy); self.assertLess(r.evaluation.mean_true_objective,r.train.mean_true_objective)
+    def test_shift_is_exactly_repeatable(self): self.assertEqual(evaluate_distribution_shift(self.train,self.shifted,1.0,1),evaluate_distribution_shift(self.train,self.shifted,1.0,1))
+    def test_unequal_population_sizes_fail_closed(self):
+        with self.assertRaises(ValueError): evaluate_distribution_shift(self.train,self.shifted[:-1],1.0,1)
+    def test_empty_shift_fails_closed(self):
+        with self.assertRaises(ValueError): evaluate_distribution_shift((),(),1.0,1)
 
-    def test_pressure_changes_who_proxy_selection_prefers(self):
-        low, high = matched_population_selection(self.population, 0.25, 1.0, 1)
-        self.assertEqual(low.selected_indices, (0,))
-        self.assertEqual(high.selected_indices, (1,))
-
-    def test_selection_can_raise_proxy_while_lowering_latent_objective(self):
-        low, high = matched_population_selection(self.population, 0.25, 1.0, 1)
-        self.assertGreater(high.mean_proxy, low.mean_proxy)
-        self.assertLess(high.mean_true_objective, low.mean_true_objective)
-
-    def test_selection_is_exactly_deterministic(self):
-        expected = select_by_proxy(self.population, 0.75, 2)
-        self.assertEqual(expected, select_by_proxy(self.population, 0.75, 2))
-
-    def test_proxy_ties_break_by_declared_population_order(self):
-        tied = (Candidate(1.0, 0.0), Candidate(1.0, 0.0))
-        self.assertEqual(select_by_proxy(tied, 0.5, 1).selected_indices, (0,))
-
-    def test_invalid_selection_size_fails_closed(self):
-        with self.assertRaises(ValueError):
-            select_by_proxy(self.population, 0.5, 0)
-        with self.assertRaises(ValueError):
-            select_by_proxy(self.population, 0.5, 4)
-
-    def test_empty_population_fails_closed(self):
-        with self.assertRaises(ValueError):
-            select_by_proxy((), 0.5, 1)
-
-
-if __name__ == "__main__":
-    unittest.main()
+if __name__=='__main__': unittest.main()
