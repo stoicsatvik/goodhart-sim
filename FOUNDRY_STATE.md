@@ -20,14 +20,24 @@ A user can change one config value for optimization pressure and reproduce a cle
 - Branch: `foundry/v0-scalar-sim`; do not merge without explicit approval.
 - Champion commit: `799a4f4b73397479dfb5c12cb6f08864f4ab6049`.
 - Evidence: GitHub Actions workflow run `34190851578`, job `core-contracts` (`101948435135`), completed successfully on Python 3.12.
-- `goodhart_sim.py`: deterministic scalar environment separating productive effort, gaming, observable proxy, and latent true objective.
-- `test_goodhart_sim.py`: six contracts covering zero-pressure behavior, proxy/goal divergence, determinism, ordered sweeps, invalid pressure, and rejection of unmodelled noise.
 - Runtime evidence: SUPPORTED for the committed deterministic synthetic contracts.
 
+## Seeded-noise challenger
+- Challenger commit: `47c087899d979fa6b8b30cdf94544b6adf13882a`.
+- Evidence: GitHub Actions workflow run `34199582629` completed successfully.
+- Capability: deterministic seeded measurement noise, matched-seed pressure comparisons, and a fixed sealed seed failure-rate gate.
+- Promotion status: SUPPORTED on the committed synthetic contracts. Matching a seed preserves the same observation error across pressure conditions; distinct declared seeds produce distinct errors; the fixed sealed seed set preserves the proxy-up / true-objective-down failure.
+
+## Selection-effect challenger
+- Uses the same declared synthetic population at low and high optimization pressure.
+- Ranks by observable proxy, preserves latent true-objective outcomes separately, and uses deterministic index tie-breaking.
+- Promotion gate: low/high pressure must change the selected candidate in the declared fixture while increasing selected mean proxy and decreasing selected mean latent objective; exact repetition and invalid-input failure contracts must pass in CI.
+- Runtime status: NOT YET PROVEN until the exact challenger head completes CI.
+
 ## Claim boundary
-This is a synthetic educational model, not evidence that any real organization or KPI follows these equations. Measurement noise, selection effects, and distribution shift are NOT YET PROVEN / unimplemented. A green deterministic scalar gate does not establish those extensions or external validity.
+This is a synthetic educational model, not evidence that any real organization or KPI follows these equations. Scalar gaming and seeded measurement-noise mechanics are SUPPORTED only on committed synthetic contracts. Selection effects are NOT YET PROVEN pending exact-head CI. Distribution shift and real-world external validity remain NOT YET PROVEN.
 
 ## Highest-EV next move
-Keep `799a4f4b...` frozen as champion. Add a challenger with deterministic seeded measurement noise and matched-seed pressure comparisons. Require exact repeatability for identical seeds, divergence across at least two declared seeds, and preservation/detection of the Goodhart failure under a fixed sealed seed set before promotion. Do not use unseeded randomness.
+Execute the selection-effect challenger through the existing narrow CI gate. If green, freeze its exact head and advance to a minimal deterministic distribution-shift falsification that preserves matched populations/configuration budgets. If red, preserve the failure and repair only the violated contract.
 
-Status: ACTIVE / SCALAR CHAMPION SUPPORTED / SEEDED-NOISE CHALLENGER NEXT
+Status: ACTIVE / SCALAR + SEEDED-NOISE SUPPORTED / SELECTION CHALLENGER PENDING

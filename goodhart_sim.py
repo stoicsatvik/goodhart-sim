@@ -1,9 +1,10 @@
-"""Scalar Goodhart simulator with deterministic seeded measurement noise.
+"""Synthetic Goodhart simulator with deterministic noise and selection effects.
 
-The latent objective rewards productive effort and penalizes gaming. The observable
-proxy rewards both and may additionally contain seeded measurement error. Noise is
-kept separate from the latent objective so matched-seed pressure comparisons do not
-confound the underlying synthetic mechanism with observation error.
+The latent objective rewards productive effort and penalizes gaming. Observable
+proxies can reward gaming and contain seeded measurement error. Selection routines
+rank a declared synthetic population by proxy while separately preserving latent
+outcomes, so proxy-driven selection can be falsified without claiming real-world
+organizational validity.
 """
 from dataclasses import dataclass
 import random
@@ -25,6 +26,19 @@ class Outcome:
     proxy: float
     true_objective: float
     measurement_error: float = 0.0
+
+
+@dataclass(frozen=True)
+class Candidate:
+    base_productivity: float
+    gaming_affinity: float
+
+
+@dataclass(frozen=True)
+class SelectionResult:
+    selected_indices: tuple[int, ...]
+    mean_proxy: float
+    mean_true_objective: float
 
 
 def simulate(config: Config) -> Outcome:
@@ -86,3 +100,52 @@ def sealed_seed_failure_rate(
         )
         failures += high.proxy > low.proxy and high.true_objective < low.true_objective
     return failures / len(seeds)
+
+
+def evaluate_candidate(candidate: Candidate, optimization_pressure: float) -> Outcome:
+    """Evaluate a declared synthetic candidate without measurement noise."""
+    if not 0.0 <= optimization_pressure <= 1.0:
+        raise ValueError("optimization_pressure must be in [0, 1]")
+    if candidate.base_productivity < 0.0 or candidate.gaming_affinity < 0.0:
+        raise ValueError("candidate parameters must be non-negative")
+    p = optimization_pressure
+    productive = candidate.base_productivity * (1.0 - 0.2 * p)
+    gaming = candidate.gaming_affinity * p * p
+    proxy = productive + 0.75 * gaming
+    true_objective = productive - gaming
+    return Outcome(productive, gaming, proxy, true_objective)
+
+
+def select_by_proxy(
+    population: tuple[Candidate, ...],
+    optimization_pressure: float,
+    select_n: int,
+) -> SelectionResult:
+    """Select top-N by proxy with deterministic index tie-breaking."""
+    if not population:
+        raise ValueError("population must not be empty")
+    if not 1 <= select_n <= len(population):
+        raise ValueError("select_n must be between 1 and population size")
+    evaluated = tuple(
+        evaluate_candidate(candidate, optimization_pressure) for candidate in population
+    )
+    ranked = sorted(range(len(population)), key=lambda i: (-evaluated[i].proxy, i))
+    chosen = tuple(ranked[:select_n])
+    return SelectionResult(
+        selected_indices=chosen,
+        mean_proxy=sum(evaluated[i].proxy for i in chosen) / select_n,
+        mean_true_objective=sum(evaluated[i].true_objective for i in chosen) / select_n,
+    )
+
+
+def matched_population_selection(
+    population: tuple[Candidate, ...],
+    low_pressure: float,
+    high_pressure: float,
+    select_n: int,
+) -> tuple[SelectionResult, SelectionResult]:
+    """Compare selection pressure on exactly the same declared population."""
+    return (
+        select_by_proxy(population, low_pressure, select_n),
+        select_by_proxy(population, high_pressure, select_n),
+    )

@@ -1,9 +1,12 @@
 import unittest
 from goodhart_sim import (
+    Candidate,
     Config,
+    matched_population_selection,
     matched_seed_comparison,
     pressure_sweep,
     sealed_seed_failure_rate,
+    select_by_proxy,
     simulate,
 )
 
@@ -61,6 +64,43 @@ class ScalarGoodhartContracts(unittest.TestCase):
     def test_empty_sealed_seed_set_fails_closed(self):
         with self.assertRaises(ValueError):
             sealed_seed_failure_rate(())
+
+
+class SelectionEffectContracts(unittest.TestCase):
+    def setUp(self):
+        self.population = (
+            Candidate(base_productivity=1.0, gaming_affinity=0.1),
+            Candidate(base_productivity=0.8, gaming_affinity=1.0),
+            Candidate(base_productivity=0.9, gaming_affinity=0.35),
+        )
+
+    def test_pressure_changes_who_proxy_selection_prefers(self):
+        low, high = matched_population_selection(self.population, 0.25, 1.0, 1)
+        self.assertEqual(low.selected_indices, (0,))
+        self.assertEqual(high.selected_indices, (1,))
+
+    def test_selection_can_raise_proxy_while_lowering_latent_objective(self):
+        low, high = matched_population_selection(self.population, 0.25, 1.0, 1)
+        self.assertGreater(high.mean_proxy, low.mean_proxy)
+        self.assertLess(high.mean_true_objective, low.mean_true_objective)
+
+    def test_selection_is_exactly_deterministic(self):
+        expected = select_by_proxy(self.population, 0.75, 2)
+        self.assertEqual(expected, select_by_proxy(self.population, 0.75, 2))
+
+    def test_proxy_ties_break_by_declared_population_order(self):
+        tied = (Candidate(1.0, 0.0), Candidate(1.0, 0.0))
+        self.assertEqual(select_by_proxy(tied, 0.5, 1).selected_indices, (0,))
+
+    def test_invalid_selection_size_fails_closed(self):
+        with self.assertRaises(ValueError):
+            select_by_proxy(self.population, 0.5, 0)
+        with self.assertRaises(ValueError):
+            select_by_proxy(self.population, 0.5, 4)
+
+    def test_empty_population_fails_closed(self):
+        with self.assertRaises(ValueError):
+            select_by_proxy((), 0.5, 1)
 
 
 if __name__ == "__main__":
