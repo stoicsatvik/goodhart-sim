@@ -1,5 +1,6 @@
 import unittest
 from goodhart_sim import Candidate, Config, evaluate_distribution_shift, matched_population_selection, matched_seed_comparison, pressure_sweep, sealed_seed_failure_rate, select_by_proxy, simulate
+from report_goodhart import build_report
 
 class ScalarGoodhartContracts(unittest.TestCase):
     def test_zero_pressure_has_no_gaming(self):
@@ -47,5 +48,15 @@ class DistributionShiftContracts(unittest.TestCase):
         with self.assertRaises(ValueError): evaluate_distribution_shift(self.train,self.shifted[:-1],1.0,1)
     def test_empty_shift_fails_closed(self):
         with self.assertRaises(ValueError): evaluate_distribution_shift((),(),1.0,1)
+
+class ReportContracts(unittest.TestCase):
+    def test_default_report_exposes_failure_and_claim_boundary(self):
+        report=build_report(0.25,1.0)
+        self.assertIn("proxy_delta=+",report)
+        self.assertIn("true_objective_delta=-",report)
+        self.assertIn("goodhart_failure=YES",report)
+        self.assertIn("claim_boundary=synthetic fixture",report)
+    def test_report_is_exactly_repeatable(self): self.assertEqual(build_report(0.25,1.0),build_report(0.25,1.0))
+    def test_single_pressure_change_can_remove_failure(self): self.assertIn("goodhart_failure=NO",build_report(0.25,0.25))
 
 if __name__=='__main__': unittest.main()
