@@ -5,6 +5,7 @@ separate from latent objectives so failures can be falsified without implying
 real-world organizational validity.
 """
 from dataclasses import dataclass
+import math
 import random
 
 
@@ -47,14 +48,22 @@ class ShiftResult:
     true_objective_delta: float
 
 
+def _checked_outcome(outcome: Outcome) -> Outcome:
+    """Reject finite-input overflow rather than silently emitting non-finite metrics."""
+    values = (outcome.productive_effort, outcome.gaming, outcome.proxy, outcome.true_objective, outcome.measurement_error)
+    if not all(math.isfinite(value) for value in values):
+        raise ValueError("computed outcome must be finite")
+    return outcome
+
+
 def simulate(config: Config) -> Outcome:
-    if not 0.0 <= config.optimization_pressure <= 1.0:
+    if not math.isfinite(config.optimization_pressure) or not 0.0 <= config.optimization_pressure <= 1.0:
         raise ValueError("optimization_pressure must be in [0, 1]")
-    if config.measurement_noise < 0.0:
+    if not math.isfinite(config.measurement_noise) or config.measurement_noise < 0.0:
         raise ValueError("measurement_noise must be non-negative")
     if config.measurement_noise > 0.0 and config.noise_seed is None:
         raise ValueError("non-zero measurement_noise requires an explicit noise_seed")
-    if config.gaming_cost < 0 or config.gaming_harm < 0:
+    if not all(math.isfinite(value) for value in (config.gaming_cost, config.gaming_harm)) or config.gaming_cost < 0 or config.gaming_harm < 0:
         raise ValueError("cost/harm must be non-negative")
     p = config.optimization_pressure
     productive = 1.0 - 0.4 * p
@@ -63,7 +72,7 @@ def simulate(config: Config) -> Outcome:
     measurement_error = 0.0
     if config.measurement_noise > 0.0:
         measurement_error = random.Random(config.noise_seed).uniform(-config.measurement_noise, config.measurement_noise)
-    return Outcome(productive, gaming, latent_proxy + measurement_error, productive - config.gaming_harm * gaming, measurement_error)
+    return _checked_outcome(Outcome(productive, gaming, latent_proxy + measurement_error, productive - config.gaming_harm * gaming, measurement_error))
 
 
 def pressure_sweep(pressures: tuple[float, ...]) -> tuple[Outcome, ...]:
@@ -87,14 +96,14 @@ def sealed_seed_failure_rate(seeds: tuple[int, ...], *, low_pressure: float = 0.
 
 
 def evaluate_candidate(candidate: Candidate, optimization_pressure: float) -> Outcome:
-    if not 0.0 <= optimization_pressure <= 1.0:
+    if not math.isfinite(optimization_pressure) or not 0.0 <= optimization_pressure <= 1.0:
         raise ValueError("optimization_pressure must be in [0, 1]")
-    if candidate.base_productivity < 0.0 or candidate.gaming_affinity < 0.0:
+    if not all(math.isfinite(value) for value in (candidate.base_productivity, candidate.gaming_affinity)) or candidate.base_productivity < 0.0 or candidate.gaming_affinity < 0.0:
         raise ValueError("candidate parameters must be non-negative")
     p = optimization_pressure
     productive = candidate.base_productivity * (1.0 - 0.2 * p)
     gaming = candidate.gaming_affinity * p * p
-    return Outcome(productive, gaming, productive + 0.75 * gaming, productive - gaming)
+    return _checked_outcome(Outcome(productive, gaming, productive + 0.75 * gaming, productive - gaming))
 
 
 def select_by_proxy(population: tuple[Candidate, ...], optimization_pressure: float, select_n: int) -> SelectionResult:
@@ -105,7 +114,14 @@ def select_by_proxy(population: tuple[Candidate, ...], optimization_pressure: fl
     evaluated = tuple(evaluate_candidate(c, optimization_pressure) for c in population)
     ranked = sorted(range(len(population)), key=lambda i: (-evaluated[i].proxy, i))
     chosen = tuple(ranked[:select_n])
-    return SelectionResult(chosen, sum(evaluated[i].proxy for i in chosen) / select_n, sum(evaluated[i].true_objective for i in chosen) / select_n)
+    try:
+        mean_proxy = math.fsum(evaluated[i].proxy / select_n for i in chosen)
+        mean_true = math.fsum(evaluated[i].true_objective / select_n for i in chosen)
+    except OverflowError as error:
+        raise ValueError("selection aggregate must be finite") from error
+    if not math.isfinite(mean_proxy) or not math.isfinite(mean_true):
+        raise ValueError("selection aggregate must be finite")
+    return SelectionResult(chosen, mean_proxy, mean_true)
 
 
 def matched_population_selection(population: tuple[Candidate, ...], low_pressure: float, high_pressure: float, select_n: int) -> tuple[SelectionResult, SelectionResult]:

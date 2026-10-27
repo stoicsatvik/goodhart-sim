@@ -59,4 +59,42 @@ class ReportContracts(unittest.TestCase):
     def test_report_is_exactly_repeatable(self): self.assertEqual(build_report(0.25,1.0),build_report(0.25,1.0))
     def test_single_pressure_change_can_remove_failure(self): self.assertIn("goodhart_failure=NO",build_report(0.25,0.25))
 
+
+class FiniteNumericContracts(unittest.TestCase):
+    def test_nonfinite_config_values_fail_closed(self):
+        import math
+        for bad in (math.nan, math.inf, -math.inf):
+            with self.subTest(field="pressure", bad=bad), self.assertRaises(ValueError):
+                simulate(Config(bad))
+            with self.subTest(field="noise", bad=bad), self.assertRaises(ValueError):
+                simulate(Config(0.5, measurement_noise=bad, noise_seed=7))
+            with self.subTest(field="cost", bad=bad), self.assertRaises(ValueError):
+                simulate(Config(0.5, gaming_cost=bad))
+            with self.subTest(field="harm", bad=bad), self.assertRaises(ValueError):
+                simulate(Config(0.5, gaming_harm=bad))
+
+    def test_nonfinite_candidate_values_fail_closed(self):
+        import math
+        for bad in (math.nan, math.inf, -math.inf):
+            with self.subTest(field="productivity", bad=bad), self.assertRaises(ValueError):
+                select_by_proxy((Candidate(bad, 0.5),), 0.5, 1)
+            with self.subTest(field="affinity", bad=bad), self.assertRaises(ValueError):
+                select_by_proxy((Candidate(1.0, bad),), 0.5, 1)
+
+    def test_finite_inputs_that_overflow_outputs_fail_closed(self):
+        with self.assertRaisesRegex(ValueError, "computed outcome must be finite"):
+            select_by_proxy((Candidate(1.7e308, 1.7e308),), 1.0, 1)
+        with self.assertRaisesRegex(ValueError, "computed outcome must be finite"):
+            simulate(Config(0.5, measurement_noise=1.7e308, noise_seed=7))
+
+    def test_scaled_selection_aggregation_avoids_spurious_sum_overflow(self):
+        population = (Candidate(1e308, 0.0), Candidate(1e308, 0.0))
+        result = select_by_proxy(population, 0.0, 2)
+        self.assertEqual(result.mean_proxy, 1e308)
+        self.assertEqual(result.mean_true_objective, 1e308)
+        self.assertEqual(result.selected_indices, (0, 1))
+
+    def test_existing_report_remains_finite_and_deterministic(self):
+        self.assertEqual(build_report(0.25, 1.0), build_report(0.25, 1.0))
+
 if __name__=='__main__': unittest.main()
